@@ -3,6 +3,7 @@
  * Version 2.0.0
  * Robert Borghese
  */
+
 const DBM = {};
 const DiscordJS = DBM.DiscordJS = require('discord.js');
 
