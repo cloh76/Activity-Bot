@@ -1,5 +1,5 @@
 /*
- * Coded Using VS Code and DBM Application
+ * Discord Bot Maker Bot
  * Version 2.0.0
  * Robert Borghese
  */
