@@ -6,7 +6,7 @@ module.exports = {
 // This is the name of the action displayed in the editor.
 //---------------------------------------------------------------------
 
-name: "Send Embed Message",
+name: "Set Bot Game",
 
 //---------------------------------------------------------------------
 // Action Section
@@ -14,7 +14,7 @@ name: "Send Embed Message",
 // This is the section the action will fall into.
 //---------------------------------------------------------------------
 
-section: "Messaging",
+section: "Bot Client Control",
 
 //---------------------------------------------------------------------
 // Action Subtitle
@@ -23,8 +23,7 @@ section: "Messaging",
 //---------------------------------------------------------------------
 
 subtitle: function(data) {
-	const channels = ['Same Channel', 'Command Author', 'Mentioned User', 'Mentioned Channel', 'Default Channel', 'Temp Variable', 'Server Variable', 'Global Variable']
-	return `${channels[parseInt(data.channel)]}: ${data.varName}`;
+	return `${data.gameName}${data.gameLink ? ' [' + data.gameLink + ']' : ''}`;
 },
 
 //---------------------------------------------------------------------
@@ -35,7 +34,7 @@ subtitle: function(data) {
 // are also the names of the fields stored in the action's JSON data.
 //---------------------------------------------------------------------
 
-fields: ["storage", "varName", "channel", "varName2"],
+fields: ["gameName", "gameLink"],
 
 //---------------------------------------------------------------------
 // Command HTML
@@ -55,28 +54,15 @@ fields: ["storage", "varName", "channel", "varName2"],
 
 html: function(isEvent, data) {
 	return `
-<div>
-	<div style="float: left; width: 35%;">
-		Source Embed Object:<br>
-		<select id="storage" class="round" onchange="glob.refreshVariableList(this)">
-			${data.variables[1]}
-		</select>
-	</div>
-	<div id="varNameContainer" style="float: right; width: 60%;">
-		Variable Name:<br>
-		<input id="varName" class="round" type="text" list="variableList"><br>
-	</div>
-</div><br><br><br>
-<div style="padding-top: 8px; float: left; width: 35%;">
-	Send To:<br>
-	<select id="channel" class="round" onchange="glob.sendTargetChange(this, 'varNameContainer2')">
-		${data.sendTargets[isEvent ? 1 : 0]}
-	</select>
+<div style="width: 90%;">
+	Game Name:<br>
+	<input id="gameName" class="round" type="text">
+</div><br>
+<div style="width: 90%;">
+	Twitch Stream Link:<br>
+	<input id="gameLink" class="round" type="text" placeholder="Leave blank to disallow!">
 </div>
-<div id="varNameContainer2" style="display: none; float: right; width: 60%;">
-	Variable Name:<br>
-	<input id="varName2" class="round" type="text"><br>
-</div>`
+`
 },
 
 //---------------------------------------------------------------------
@@ -88,10 +74,6 @@ html: function(isEvent, data) {
 //---------------------------------------------------------------------
 
 init: function() {
-	const {glob, document} = this;
-
-	glob.refreshVariableList(document.getElementById('storage'));
-	glob.sendTargetChange(document.getElementById('channel'), 'varNameContainer2')
 },
 
 //---------------------------------------------------------------------
@@ -103,27 +85,20 @@ init: function() {
 //---------------------------------------------------------------------
 
 action: function(cache) {
+	const botClient = this.getDBM().Bot.bot.user;
 	const data = cache.actions[cache.index];
-	const server = cache.server;
-	const storage = parseInt(data.storage);
-	const varName = this.evalMessage(data.varName, cache);
-	const embed = this.getVariable(storage, varName, cache);
-	if(!embed) {
-		this.callNextAction(cache);
-		return;
-	}
-	const msg = cache.msg;
-	const channel = parseInt(data.channel);
-	const varName2 = this.evalMessage(data.varName2, cache);
-	const target = this.getSendTarget(channel, varName2, cache);
-	if(Array.isArray(target)) {
-		this.callListFunc(target, 'send', [{embed}]).then(function() {
-			this.callNextAction(cache);
-		}.bind(this));
-	} else if(target && target.send) {
-		target.send({embed}).then(function() {
-			this.callNextAction(cache);
-		}.bind(this)).catch(this.displayError.bind(this, data, cache));
+	const game = this.evalMessage(data.gameName, cache);
+	const link = this.evalMessage(data.gameLink, cache);
+	if(botClient && botClient.setPresence) {
+		if(link) {
+			botClient.setPresence({ game: { name: game, type: 0, url: link } }).then(function() {
+				this.callNextAction(cache);
+			}.bind(this)).catch(this.displayError.bind(this, data, cache));
+		} else {
+			botClient.setPresence({ game: { name: game, type: 0 } }).then(function() {
+				this.callNextAction(cache);
+			}.bind(this)).catch(this.displayError.bind(this, data, cache));
+		}
 	} else {
 		this.callNextAction(cache);
 	}

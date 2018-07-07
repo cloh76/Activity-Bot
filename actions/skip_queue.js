@@ -6,7 +6,7 @@ module.exports = {
 // This is the name of the action displayed in the editor.
 //---------------------------------------------------------------------
 
-name: "Send Embed Message",
+name: "Skip Queue",
 
 //---------------------------------------------------------------------
 // Action Section
@@ -14,7 +14,7 @@ name: "Send Embed Message",
 // This is the section the action will fall into.
 //---------------------------------------------------------------------
 
-section: "Messaging",
+section: "Audio Control",
 
 //---------------------------------------------------------------------
 // Action Subtitle
@@ -23,8 +23,7 @@ section: "Messaging",
 //---------------------------------------------------------------------
 
 subtitle: function(data) {
-	const channels = ['Same Channel', 'Command Author', 'Mentioned User', 'Mentioned Channel', 'Default Channel', 'Temp Variable', 'Server Variable', 'Global Variable']
-	return `${channels[parseInt(data.channel)]}: ${data.varName}`;
+	return `Skip ${data.amount} Items`;
 },
 
 //---------------------------------------------------------------------
@@ -35,7 +34,7 @@ subtitle: function(data) {
 // are also the names of the fields stored in the action's JSON data.
 //---------------------------------------------------------------------
 
-fields: ["storage", "varName", "channel", "varName2"],
+fields: ["amount"],
 
 //---------------------------------------------------------------------
 // Command HTML
@@ -55,28 +54,10 @@ fields: ["storage", "varName", "channel", "varName2"],
 
 html: function(isEvent, data) {
 	return `
-<div>
-	<div style="float: left; width: 35%;">
-		Source Embed Object:<br>
-		<select id="storage" class="round" onchange="glob.refreshVariableList(this)">
-			${data.variables[1]}
-		</select>
-	</div>
-	<div id="varNameContainer" style="float: right; width: 60%;">
-		Variable Name:<br>
-		<input id="varName" class="round" type="text" list="variableList"><br>
-	</div>
-</div><br><br><br>
-<div style="padding-top: 8px; float: left; width: 35%;">
-	Send To:<br>
-	<select id="channel" class="round" onchange="glob.sendTargetChange(this, 'varNameContainer2')">
-		${data.sendTargets[isEvent ? 1 : 0]}
-	</select>
-</div>
-<div id="varNameContainer2" style="display: none; float: right; width: 60%;">
-	Variable Name:<br>
-	<input id="varName2" class="round" type="text"><br>
-</div>`
+<div style="float: left; width: 80%;">
+	Amount to Skip:<br>
+	<input id="amount" class="round" value="1">
+</div>`;
 },
 
 //---------------------------------------------------------------------
@@ -88,10 +69,6 @@ html: function(isEvent, data) {
 //---------------------------------------------------------------------
 
 init: function() {
-	const {glob, document} = this;
-
-	glob.refreshVariableList(document.getElementById('storage'));
-	glob.sendTargetChange(document.getElementById('channel'), 'varNameContainer2')
 },
 
 //---------------------------------------------------------------------
@@ -104,29 +81,25 @@ init: function() {
 
 action: function(cache) {
 	const data = cache.actions[cache.index];
+	const Audio = this.getDBM().Audio;
 	const server = cache.server;
-	const storage = parseInt(data.storage);
-	const varName = this.evalMessage(data.varName, cache);
-	const embed = this.getVariable(storage, varName, cache);
-	if(!embed) {
-		this.callNextAction(cache);
-		return;
+	let queue;
+	if(server) {
+		queue = Audio.queue[server.id];
+	} 
+	if(queue) {
+		const amount = parseInt(this.evalMessage(data.amount, cache));
+		let finalItem;
+		for(let i = 0; i < amount; i++) {
+			if(queue.length > 0) {
+				finalItem = queue.shift();
+			}
+		}
+		if(finalItem) {
+			Audio.playItem(finalItem, server.id);
+		}
 	}
-	const msg = cache.msg;
-	const channel = parseInt(data.channel);
-	const varName2 = this.evalMessage(data.varName2, cache);
-	const target = this.getSendTarget(channel, varName2, cache);
-	if(Array.isArray(target)) {
-		this.callListFunc(target, 'send', [{embed}]).then(function() {
-			this.callNextAction(cache);
-		}.bind(this));
-	} else if(target && target.send) {
-		target.send({embed}).then(function() {
-			this.callNextAction(cache);
-		}.bind(this)).catch(this.displayError.bind(this, data, cache));
-	} else {
-		this.callNextAction(cache);
-	}
+	this.callNextAction(cache);
 },
 
 //---------------------------------------------------------------------
